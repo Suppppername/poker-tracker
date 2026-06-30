@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d1311">
+<title>手牌记录</title>
+<style>
+  :root{
+    --bg:#0d1311; --panel:#152019; --panel2:#1b271f; --line:rgba(255,255,255,.08);
+    --text:#e9f1ea; --muted:#8aa096; --muted2:#5f7268;
+    --green:#34d399; --yellow:#f4c038; --blue:#5aa2f5; --red:#f0716e;
+    --winbg:rgba(52,211,153,.14); --losebg:rgba(240,113,110,.14);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Segoe UI,Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased; font-variant-numeric:tabular-nums;}
+  body{padding:env(safe-area-inset-top) 14px calc(env(safe-area-inset-bottom) + 14px);}
+  .num{font-variant-numeric:tabular-nums; font-feature-settings:"tnum";}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;padding:14px 2px 10px;}
+  header h1{font-size:17px;font-weight:600;margin:0;letter-spacing:.5px;}
+  header .sub{font-size:12px;color:var(--muted);}
+
+  /* chart */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;}
+  #chartCard{padding:12px 10px 8px;margin-bottom:12px;}
+  #chart{width:100%;height:200px;display:block;}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 16px;padding:8px 4px 2px;font-size:12px;color:var(--muted);}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle;}
+  .legend b{color:var(--text);font-weight:600;}
+
+  /* stats */
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:9px 8px;text-align:center;}
+  .stat .k{font-size:10.5px;color:var(--muted);letter-spacing:.3px;margin-bottom:3px;}
+  .stat .v{font-size:16px;font-weight:600;}
+
+  /* entry */
+  #entry{padding:14px 14px 16px;margin-bottom:12px;}
+  .amtrow{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .amtrow .lbl{font-size:13px;color:var(--muted);white-space:nowrap;}
+  #amt{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+    color:var(--text);font-size:30px;font-weight:600;padding:12px 14px;text-align:right;outline:none;width:100%;}
+  #amt::placeholder{color:var(--muted2);font-weight:500;}
+
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .btn{border:1px solid var(--line);border-radius:13px;padding:15px 8px;font-size:15px;font-weight:600;
+    color:var(--text);background:var(--panel2);text-align:center;cursor:pointer;line-height:1.25;
+    transition:transform .05s ease, filter .1s ease;}
+  .btn:active{transform:scale(.97);filter:brightness(1.15);}
+  .btn small{display:block;font-size:10.5px;font-weight:500;color:var(--muted);margin-top:2px;}
+  .btn.sd{border-color:rgba(90,162,245,.4);}
+  .btn.nsd{border-color:rgba(240,113,110,.4);}
+  .btn.win{background:linear-gradient(var(--winbg),var(--winbg)),var(--panel2);}
+  .btn.lose{background:linear-gradient(var(--losebg),var(--losebg)),var(--panel2);}
+  .btn .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+
+  /* optional toggles */
+  .opts{display:flex;gap:8px;margin:13px 0 0;}
+  .chip{flex:1;border:1px dashed var(--line);border-radius:11px;padding:9px;font-size:12.5px;color:var(--muted);
+    text-align:center;cursor:pointer;background:transparent;}
+  .chip.on{border-style:solid;color:var(--text);background:var(--panel2);}
+  .chip b{color:var(--text);font-weight:600;}
+
+  .drawer{margin-top:11px;display:none;}
+  .drawer.open{display:block;}
+
+  /* hand grid */
+  #grid{display:grid;grid-template-columns:repeat(13,1fr);gap:2px;}
+  #grid .cell{font-size:9px;text-align:center;padding:4px 0;border-radius:3px;cursor:pointer;
+    background:var(--panel2);color:var(--muted);line-height:1;}
+  #grid .cell.pair{background:#243a2e;color:#bfe6cf;}
+  #grid .cell.suited{background:#1f2e3f;color:#bcd6f5;}
+  #grid .cell.sel{outline:2px solid var(--yellow);color:#fff;}
+  .gridhint{font-size:11px;color:var(--muted);margin:8px 2px 0;}
+
+  /* ev box */
+  .evgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+  .field label{display:block;font-size:11px;color:var(--muted);margin:0 0 4px 2px;}
+  .field input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+    color:var(--text);font-size:16px;padding:10px;outline:none;text-align:center;}
+  .evout{margin-top:10px;font-size:13px;color:var(--muted);text-align:center;}
+  .evout b{color:var(--yellow);font-size:16px;}
+  .evhint{font-size:11px;color:var(--muted2);text-align:center;margin-top:6px;line-height:1.5;}
+
+  /* list + actions */
+  .barrow{display:flex;gap:8px;margin-bottom:12px;}
+  .barbtn{flex:1;border:1px solid var(--line);background:var(--panel);color:var(--text);
+    border-radius:11px;padding:11px;font-size:13px;cursor:pointer;text-align:center;}
+  .barbtn:active{filter:brightness(1.2);}
+  .barbtn.warn{color:var(--red);}
+
+  #list{padding:6px 4px;}
+  #list .h{display:flex;align-items:center;gap:8px;padding:9px 8px;border-bottom:1px solid var(--line);font-size:13px;}
+  #list .h:last-child{border-bottom:none;}
+  #list .idx{color:var(--muted2);width:26px;font-size:11px;}
+  #list .tag{font-size:10px;padding:2px 6px;border-radius:5px;}
+  #list .tag.sd{background:rgba(90,162,245,.16);color:var(--blue);}
+  #list .tag.nsd{background:rgba(240,113,110,.16);color:var(--red);}
+  #list .hand{color:var(--muted);min-width:38px;}
+  #list .p{margin-left:auto;font-weight:600;font-size:15px;}
+  #list .p.pos{color:var(--green);} #list .p.neg{color:var(--red);}
+  #list .ev{color:var(--yellow);font-size:11px;min-width:54px;text-align:right;}
+  #list .del{color:var(--muted2);padding:2px 6px;cursor:pointer;font-size:16px;}
+  .empty{color:var(--muted2);text-align:center;padding:24px;font-size:13px;}
+  .section-t{font-size:12px;color:var(--muted);margin:0 4px 6px;letter-spacing:.3px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>手牌记录</h1>
+  <span class="sub" id="sessLbl">本局</span>
+</header>
+
+<div class="card" id="chartCard">
+  <canvas id="chart"></canvas>
+  <div class="legend">
+    <span><i style="background:var(--green)"></i><b>净盈利</b></span>
+    <span><i style="background:var(--yellow)"></i><b>净EV</b></span>
+    <span><i style="background:var(--blue)"></i><b>摊牌</b></span>
+    <span><i style="background:var(--red)"></i><b>非摊牌</b></span>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="k">手数</div><div class="v num" id="sN">0</div></div>
+  <div class="stat"><div class="k">净盈利</div><div class="v num" id="sP" style="color:var(--green)">0</div></div>
+  <div class="stat"><div class="k">净EV</div><div class="v num" id="sE" style="color:var(--yellow)">0</div></div>
+  <div class="stat"><div class="k">摊牌率</div><div class="v num" id="sR">—</div></div>
+</div>
+
+<div class="card" id="entry">
+  <div class="amtrow">
+    <span class="lbl">金额</span>
+    <input id="amt" inputmode="decimal" placeholder="0" autocomplete="off">
+  </div>
+
+  <div class="btns">
+    <div class="btn sd win"  onclick="record(true,true)"><span class="dot" style="background:var(--blue)"></span>摊牌 · 赢<small>+ 计入摊牌线</small></div>
+    <div class="btn sd lose" onclick="record(true,false)"><span class="dot" style="background:var(--blue)"></span>摊牌 · 输<small>− 计入摊牌线</small></div>
+    <div class="btn nsd win" onclick="record(false,true)"><span class="dot" style="background:var(--red)"></span>非摊牌 · 赢<small>+ 计入非摊牌线</small></div>
+    <div class="btn nsd lose"onclick="record(false,false)"><span class="dot" style="background:var(--red)"></span>非摊牌 · 输<small>− 计入非摊牌线</small></div>
+  </div>
+
+  <div class="opts">
+    <button class="chip" id="chipHand" onclick="toggle('hand')">手牌 <b id="handLbl">·</b></button>
+    <button class="chip" id="chipEv" onclick="toggle('ev')">All-in / EV <b id="evLbl">·</b></button>
+  </div>
+
+  <div class="drawer" id="dHand">
+    <div id="grid"></div>
+    <div class="gridhint">点格子选起手牌；再点一次取消。可选，不影响曲线。</div>
+  </div>
+
+  <div class="drawer" id="dEv">
+    <div class="field"><label>胜率 %</label><input id="eq" inputmode="decimal" placeholder="46"></div>
+    <div class="evout">本手 EV = <b id="evVal">—</b></div>
+    <div class="evhint">用上面填的「金额」+ 胜率算：EV = 金额 × (2×胜率 − 1)。先填金额再填胜率。</div>
+  </div>
+</div>
+
+<div id="exportModal" onclick="if(event.target===this)closeExport()"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;align-items:center;justify-content:center;padding:20px;">
+  <div class="card" style="width:100%;max-width:420px;padding:18px;">
+    <div class="section-t" style="margin:0 0 4px">导出前结算</div>
+    <div class="evhint" style="text-align:left;margin:0 0 14px;line-height:1.6">填真实净盈利（买入到走人的实际差额），对一下抽水 / 盲注 / 没记的手。留空也能导。</div>
+    <div class="amtrow" style="margin:0">
+      <span class="lbl">真实净盈利</span>
+      <input id="real" inputmode="decimal" placeholder="如 +320 或 -150" autocomplete="off"
+        style="flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:12px;color:var(--text);font-size:22px;font-weight:600;padding:11px 14px;text-align:right;outline:none;">
+    </div>
+    <div id="reconcile" class="evhint" style="text-align:left;margin-top:10px;line-height:1.7"></div>
+    <div class="barrow" style="margin:16px 0 0">
+      <button class="barbtn" onclick="closeExport()">取消</button>
+      <button class="barbtn" onclick="doExport()" style="color:var(--green)">导出 CSV</button>
+    </div>
+  </div>
+</div>
+
+<div class="barrow">
+  <button class="barbtn" onclick="undo()">↺ 撤销上一手</button>
+  <button class="barbtn" onclick="openExport()">导出 CSV</button>
+  <button class="barbtn warn" onclick="resetAll()">清空本局</button>
+</div>
+
+<div class="card">
+  <div class="section-t" style="padding:12px 4px 0">记录</div>
+  <div id="list"><div class="empty">还没有记录。打个金额，点下面任意一个按钮。</div></div>
+</div>
+
+<script>
+const KEY='poker_tracker_v1';
+let state = load();
+let hands = state.hands;
+let sel = { hand:null, useEv:false };
+
+function load(){
+  try{
+    const v=JSON.parse(localStorage.getItem(KEY));
+    if(Array.isArray(v)) return {hands:v, real:''};      // 兼容旧版（纯数组）
+    return v && v.hands ? v : {hands:[], real:''};
+  }catch(e){ return {hands:[], real:''}; }
+}
+function save(){ state.hands=hands; try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
+
+/* ---------- hand grid ---------- */
+const R=['A','K','Q','J','T','9','8','7','6','5','4','3','2'];
+(function buildGrid(){
+  const g=document.getElementById('grid');
+  for(let i=0;i<13;i++)for(let j=0;j<13;j++){
+    let h,cls;
+    if(i===j){h=R[i]+R[i];cls='pair';}
+    else if(i<j){h=R[i]+R[j]+'s';cls='suited';}
+    else {h=R[j]+R[i]+'o';cls='offsuit';}
+    const d=document.createElement('div');
+    d.className='cell '+cls; d.textContent=h; d.dataset.h=h;
+    d.onclick=()=>pickHand(h,d);
+    g.appendChild(d);
+  }
+})();
+function pickHand(h,el){
+  if(sel.hand===h){ sel.hand=null; }
+  else { sel.hand=h; }
+  document.querySelectorAll('#grid .cell').forEach(c=>c.classList.toggle('sel', c.dataset.h===sel.hand));
+  document.getElementById('handLbl').textContent = sel.hand||'·';
+}
+
+/* ---------- drawers ---------- */
+function toggle(which){
+  if(which==='hand'){
+    const d=document.getElementById('dHand'), open=d.classList.toggle('open');
+    document.getElementById('chipHand').classList.toggle('on',open);
+  } else {
+    const d=document.getElementById('dEv'), open=d.classList.toggle('open');
+    sel.useEv=open;
+    document.getElementById('chipEv').classList.toggle('on',open);
+    document.getElementById('evLbl').textContent = open?'on':'·';
+    calcEv();
+  }
+}
+function toggleAdv(){}
+['eq','amt'].forEach(id=>document.getElementById(id).addEventListener('input',calcEv));
+function evValue(mag){                              // mag = |金额|
+  const eq=parseFloat(document.getElementById('eq').value);
+  if(isFinite(eq)&&isFinite(mag)) return mag*(2*eq/100 - 1);
+  return null;
+}
+function calcEv(){
+  const mag=Math.abs(parseFloat(document.getElementById('amt').value));
+  const v=evValue(isFinite(mag)?mag:NaN);
+  document.getElementById('evVal').textContent = v==null?'—':fmt(v);
+}
+
+/* ---------- record ---------- */
+function record(showdown, win){
+  const raw=parseFloat(document.getElementById('amt').value);
+  const mag = isFinite(raw)? Math.abs(raw):0;       // 金额取绝对值，正负由按钮决定
+  const profit = win? mag : -mag;
+
+  let ev = profit;                                   // 黄线默认 = 实际盈利
+  if(sel.useEv){
+    const v=evValue(mag);
+    if(v!==null) ev=v;
+  }
+
+  hands.push({ h:sel.hand, p:profit, sd:showdown, ev:ev });
+  save();
+  // reset entry
+  document.getElementById('amt').value='';
+  if(sel.useEv){ document.getElementById('eq').value=''; calcEv(); }
+  if(sel.hand) pickHand(sel.hand, null);            // 清掉已选手牌
+  render();
+}
+function undo(){ if(hands.length){ hands.pop(); save(); render(); } }
+function resetAll(){ if(confirm('清空本局所有记录？')){ hands=[]; state.real=''; document.getElementById('real').value=''; save(); render(); } }
+
+/* ---------- 结算对账（仅导出弹窗内） ---------- */
+const realEl=document.getElementById('real');
+realEl.addEventListener('input',()=>{ state.real=realEl.value; save(); renderReconcile(); });
+function openExport(){
+  realEl.value = state.real || '';
+  renderReconcile();
+  document.getElementById('exportModal').style.display='flex';
+}
+function closeExport(){ document.getElementById('exportModal').style.display='none'; }
+function doExport(){ state.real=realEl.value; save(); exportCSV(); closeExport(); }
+function renderReconcile(){
+  const s=series(), box=document.getElementById('reconcile');
+  const real=parseFloat(state.real);
+  if(!isFinite(real)){ box.innerHTML='填了真实盈利后，这里显示它和记录值差多少（= 抽水 + 盲注 + 没记的手）。'; return; }
+  const diff=real - s.g;
+  box.innerHTML = `记录净盈利 <b style="color:var(--green)">${fmt(s.g)}</b>　真实 <b style="color:var(--green)">${fmt(real)}</b><br>`+
+                  `差额 <b style="color:var(--red)">${fmt(diff)}</b>　← 抽水 / 盲注 / 没记的手`;
+}
+
+/* ---------- compute + render ---------- */
+function series(){
+  let g=0,b=0,r=0,e=0;
+  const G=[0],B=[0],Rr=[0],E=[0];                   // 从原点 0 开始
+  hands.forEach(h=>{
+    g+=h.p; e+=h.ev;
+    if(h.sd) b+=h.p; else r+=h.p;
+    G.push(g); B.push(b); Rr.push(r); E.push(e);
+  });
+  return {G,B,R:Rr,E,g,b,r,e};
+}
+function fmt(n){ const v=Math.round(n*100)/100; return (v>0?'+':'')+(Number.isInteger(v)?v:v.toFixed(2)); }
+
+function render(){
+  const s=series();
+  document.getElementById('sN').textContent=hands.length;
+  document.getElementById('sP').textContent=fmt(s.g);
+  document.getElementById('sE').textContent=fmt(s.e);
+  const sd=hands.filter(h=>h.sd).length;
+  document.getElementById('sR').textContent= hands.length? Math.round(sd/hands.length*100)+'%':'—';
+
+  // list (newest first)
+  const L=document.getElementById('list');
+  if(!hands.length){ L.innerHTML='<div class="empty">还没有记录。打个金额，点下面任意一个按钮。</div>'; }
+  else {
+    L.innerHTML = hands.map((h,i)=>{
+      const evShown = Math.abs(h.ev-h.p)>0.005 ? `<span class="ev">EV ${fmt(h.ev)}</span>`:'';
+      return `<div class="h">
+        <span class="idx">${i+1}</span>
+        <span class="tag ${h.sd?'sd':'nsd'}">${h.sd?'摊':'非'}</span>
+        <span class="hand">${h.h||''}</span>
+        ${evShown}
+        <span class="p ${h.p>=0?'pos':'neg'}">${fmt(h.p)}</span>
+        <span class="del" onclick="delHand(${i})">×</span>
+      </div>`;
+    }).reverse().join('');
+  }
+  drawChart(s);
+}
+function delHand(i){ hands.splice(i,1); save(); render(); }
+
+/* ---------- canvas line chart ---------- */
+function drawChart(s){
+  const c=document.getElementById('chart'), ctx=c.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const W=c.clientWidth, H=200;
+  c.width=W*dpr; c.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  const padL=6,padR=6,padT=10,padB=10;
+  const all=[...s.G,...s.B,...s.R,...s.E,0];
+  let lo=Math.min(...all), hi=Math.max(...all);
+  if(lo===hi){lo-=1;hi+=1;}
+  const span=hi-lo, pad=span*0.12; lo-=pad; hi+=pad;
+  const n=s.G.length-1;                              // segments
+  const X=i=> padL + (n? i/n:0)*(W-padL-padR);
+  const Y=v=> padT + (1-(v-lo)/(hi-lo))*(H-padT-padB);
+
+  // zero baseline
+  if(lo<0&&hi>0){
+    ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(padL,Y(0)); ctx.lineTo(W-padR,Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  }
+  const draw=(arr,color,w)=>{
+    ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineJoin='round'; ctx.lineCap='round';
+    ctx.beginPath();
+    arr.forEach((v,i)=>{ const x=X(i),y=Y(v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+    ctx.stroke();
+  };
+  const cs=getComputedStyle(document.documentElement);
+  draw(s.B, cs.getPropertyValue('--blue').trim(),1.6);
+  draw(s.R, cs.getPropertyValue('--red').trim(),1.6);
+  draw(s.E, cs.getPropertyValue('--yellow').trim(),1.6);
+  draw(s.G, cs.getPropertyValue('--green').trim(),2.4);   // 净盈利最粗
+}
+
+/* ---------- export ---------- */
+function exportCSV(){
+  const s=series();
+  const real=parseFloat(state.real);
+  let rows=[['#','手牌','摊牌','盈亏','本手EV','累计净盈利','累计净EV','累计摊牌','累计非摊牌']];
+  hands.forEach((h,i)=>rows.push([i+1,h.h||'',h.sd?'摊牌':'非摊牌',h.p,Math.round(h.ev*100)/100,
+    s.G[i+1],Math.round(s.E[i+1]*100)/100,s.B[i+1],s.R[i+1]]));
+  rows.push([]);
+  rows.push(['汇总']);
+  rows.push(['记录净盈利', s.g]);
+  rows.push(['净EV', Math.round(s.e*100)/100]);
+  rows.push(['真实净盈利', isFinite(real)?real:'']);
+  rows.push(['差额(抽水/盲注/未记)', isFinite(real)? Math.round((real-s.g)*100)/100 : '']);
+  const csv='\ufeff'+rows.map(r=>r.join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'}), url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url;
+  a.download='手牌记录_'+new Date().toISOString().slice(0,10)+'.csv';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+
+window.addEventListener('resize',()=>drawChart(series()));
+realEl.value = state.real || '';
+render();
+</script>
+</body>
+</html>
